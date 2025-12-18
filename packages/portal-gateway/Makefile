@@ -22,7 +22,6 @@ define Package/portal-gateway
   TITLE:=Portal Gateway (nginx-based captive portal gateway)
   DEPENDS:= \
     +nginx \
-    +nginx-ssl \
     +nginx-util \
     +nginx-ssl-util \
     +iptables \
