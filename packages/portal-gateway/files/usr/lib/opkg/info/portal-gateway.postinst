@@ -1,0 +1,13 @@
+#!/bin/sh
+
+CHECKER="/usr/libexec/portal/check-nginx.sh"
+
+if [ -x "$CHECKER" ]; then
+    if ! QUIET=1 "$CHECKER"; then
+        echo "[portal-gateway] WARNING: nginx capability check failed"
+        echo "[portal-gateway] Portal Gateway may not function correctly"
+        echo "[portal-gateway] See logread for details"
+    fi
+fi
+
+exit 0
