@@ -4,11 +4,6 @@
 #
 # Shared nginx capability checker for Portal Gateway
 #
-# This script is used by:
-# - postinst (installation-time warnings)
-# - init.d/portal-gateway (startup-time hard checks)
-# - future CI or diagnostic tools
-#
 
 # ---------------------------------------------------------
 # Logging helpers
@@ -49,17 +44,30 @@ fi
 # ---------------------------------------------------------
 NGINX_BUILD="$($NGINX_BIN -V 2>&1)"
 
-check_module() {
-    echo "$NGINX_BUILD" | grep -q "$1"
-}
+# ---------------------------------------------------------
+# Capability checks
+# ---------------------------------------------------------
 
 missing=0
 
-require_module() {
+# Check that a module is NOT explicitly disabled
+# nginx default modules do NOT appear as --with-xxx
+require_http_module() {
+    name="$1"
+    without_flag="--without-http_${name}_module"
+
+    if echo "$NGINX_BUILD" | grep -q "$without_flag"; then
+        log "ERROR: nginx missing required capability: http_${name}"
+        missing=1
+    fi
+}
+
+# Check third-party / optional modules by presence
+require_feature() {
     name="$1"
     pattern="$2"
 
-    if ! check_module "$pattern"; then
+    if ! echo "$NGINX_BUILD" | grep -q "$pattern"; then
         log "ERROR: nginx missing required capability: $name"
         missing=1
     fi
@@ -68,18 +76,23 @@ require_module() {
 # ---------------------------------------------------------
 # Required nginx capabilities for Portal Gateway
 # ---------------------------------------------------------
-require_module "http_auth_request" "http_auth_request"
-require_module "http_proxy"        "http_proxy"
-require_module "http_map"          "http_map"
-require_module "headers_more"      "headers-more"
-require_module "http_rewrite"      "http_rewrite"
-require_module "limit_conn"        "limit_conn"
-require_module "limit_req"         "limit_req"
+
+# Core HTTP modules (default-enabled)
+require_http_module proxy
+require_http_module map
+require_http_module rewrite
+require_http_module limit_conn
+require_http_module limit_req
+
+# Optional / external modules
+require_feature "http_auth_request" "http_auth_request"
+require_feature "headers_more"      "headers-more"
 
 # ---------------------------------------------------------
 # Final result
 # ---------------------------------------------------------
 if [ "$missing" -eq 1 ]; then
+    log "nginx capability check failed"
     exit 1
 fi
 
