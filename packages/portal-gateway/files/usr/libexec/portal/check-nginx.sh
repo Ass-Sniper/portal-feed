@@ -49,6 +49,7 @@ NGINX_BUILD="$($NGINX_BIN -V 2>&1)"
 # ---------------------------------------------------------
 
 missing=0
+GREP="grep -q -- "
 
 # Check that a module is NOT explicitly disabled
 # nginx default modules do NOT appear as --with-xxx
@@ -56,7 +57,7 @@ require_http_module() {
     name="$1"
     without_flag="--without-http_${name}_module"
 
-    if echo "$NGINX_BUILD" | grep -q "$without_flag"; then
+    if echo "$NGINX_BUILD" | $GREP "$without_flag"; then
         log "ERROR: nginx missing required capability: http_${name}"
         missing=1
     fi
@@ -67,7 +68,7 @@ require_feature() {
     name="$1"
     pattern="$2"
 
-    if ! echo "$NGINX_BUILD" | grep -q "$pattern"; then
+    if ! echo "$NGINX_BUILD" | $GREP "$pattern"; then
         log "ERROR: nginx missing required capability: $name"
         missing=1
     fi
