@@ -18,7 +18,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/portal-gateway
   SECTION:=network
   CATEGORY:=Network
-  SUBMENU:=Captive Portal
+  SUBMENU:=Captive Portals
   TITLE:=Portal Gateway (nginx-based captive portal gateway)
   DEPENDS:= \
     +nginx-ssl \
