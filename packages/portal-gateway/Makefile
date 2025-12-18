@@ -72,6 +72,8 @@ define Package/portal-gateway/install
 		$(1)/usr/libexec/portal/portal-context.sh
 	$(INSTALL_BIN) ./files/usr/libexec/portal/portal-runtime-init.sh \
 		$(1)/usr/libexec/portal/portal-runtime-init.sh
+	$(INSTALL_BIN) ./files/usr/libexec/portal/check-nginx.sh \
+		$(1)/usr/libexec/portal/check-nginx.sh
 
 	# native nginx.conf for portal gateway
 	$(INSTALL_DIR) $(1)/etc/nginx
