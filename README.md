@@ -21,6 +21,12 @@ The feed can be versioned, maintained, and upgraded independently.
 
 ---
 
+## Architecture
+See docs/portal-gateway-architecture.md for full request flow and trust model.
+
+- Architecture overview: docs/portal-gateway-architecture.md
+
+
 ## Key Features
 
 ### 1. nginx-based Portal Gateway
