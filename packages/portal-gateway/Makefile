@@ -94,33 +94,18 @@ endef
 
 define Package/portal-gateway/postinst
 #!/bin/sh
-# postinst is executed by opkg after package installation
-# IPKG_INSTROOT is set during image build, skip runtime actions then
 [ -n "$$IPKG_INSTROOT" ] && exit 0
 
-echo "[portal-gateway] postinst start"
-
-# ------------------------------------------------
-# nginx capability check (non-fatal)
-# ------------------------------------------------
 CHECKER="/usr/libexec/portal/check-nginx.sh"
 
-if [ -x "$CHECKER" ]; then
-    if ! QUIET=1 "$CHECKER"; then
+if [ -x "$$CHECKER" ]; then
+    if ! QUIET=1 "$$CHECKER"; then
         echo "[portal-gateway] WARNING: nginx capability check failed"
         echo "[portal-gateway] Portal Gateway may not function correctly"
         echo "[portal-gateway] See logread for details"
     fi
 else
-    echo "[portal-gateway] NOTE: nginx checker not found: $CHECKER"
-fi
-
-# ------------------------------------------------
-# enable & start service
-# ------------------------------------------------
-if [ -x /etc/init.d/portal-gateway ]; then
-    /etc/init.d/portal-gateway enable
-    /etc/init.d/portal-gateway restart || true
+    echo "[portal-gateway] NOTE: nginx checker not found: $$CHECKER"
 fi
 
 echo "[portal-gateway] postinst done"
