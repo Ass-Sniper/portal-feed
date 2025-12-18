@@ -4,7 +4,17 @@
 START=95
 USE_PROCD=1
 
+CHECK_NGINX="/usr/libexec/portal/check-nginx.sh"
+
 start_service() {
+    if [ -x "$CHECK_NGINX" ]; then
+        if ! "$CHECK_NGINX"; then
+            echo "[portal-gateway] nginx capability check failed"
+            echo "[portal-gateway] refusing to start service"
+            return 1
+        fi
+    fi
+
     /usr/libexec/portal/portal-runtime-init.sh
     /usr/libexec/portal/portal-agent.sh start
 }

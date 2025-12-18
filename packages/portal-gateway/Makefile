@@ -21,18 +21,14 @@ define Package/portal-gateway
   SUBMENU:=Captive Portal
   TITLE:=Portal Gateway (nginx-based captive portal gateway)
   DEPENDS:= \
-	+nginx-ssl \
-	+nginx-mod-http-auth-request \
-	+nginx-mod-headers-more \
-	+nginx-mod-http-map \
-	+nginx-mod-http-rewrite \
-	+nginx-mod-http-proxy \
-	+nginx-mod-http-limit-conn \
-	+nginx-mod-http-limit-req \
-	+iptables \
-	+ipset \
-	+curl \
-	+ca-bundle
+    +nginx-ssl \
+    +nginx-util \
+    +nginx-ssl-util \
+    +iptables \
+    +ipset \
+    +curl \
+    +ca-bundle \
+    +libpcre
 endef
 
 define Package/portal-gateway/description

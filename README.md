@@ -218,6 +218,178 @@ v1.0.0  Stable production release
 
 ---
 
+## Nginx Build Requirements
+
+The Portal Gateway relies on a **non-minimal nginx build** with specific HTTP modules enabled.
+These modules are required for correct runtime behavior and **are not optional**.
+
+### Required nginx Package
+
+The following nginx packages **must be selected**:
+
+```text
+nginx-ssl
+nginx-util
+nginx-ssl-util
+```
+
+Minimal nginx variants are **not supported**.
+
+---
+
+### Required nginx HTTP Modules
+
+When building nginx via `make menuconfig`, ensure the following modules are enabled:
+
+```text
+CONFIG_NGINX_HTTP_AUTH_REQUEST=y
+CONFIG_NGINX_HTTP_PROXY=y
+CONFIG_NGINX_HTTP_MAP=y
+CONFIG_NGINX_HTTP_REWRITE=y
+CONFIG_NGINX_HEADERS_MORE=y
+CONFIG_NGINX_HTTP_LIMIT_CONN=y
+CONFIG_NGINX_HTTP_LIMIT_REQ=y
+```
+
+These modules are required for:
+
+| Module                     | Purpose                                 |
+| -------------------------- | --------------------------------------- |
+| `http_auth_request`        | External signer-based authentication    |
+| `http_proxy`               | Proxying traffic to Portal Server       |
+| `http_map`                 | OS / behavior classification            |
+| `http_rewrite`             | Probe handling and control flow         |
+| `headers_more`             | Trusted header sanitization & injection |
+| `limit_conn` / `limit_req` | Basic abuse protection                  |
+
+---
+
+### Regular Expression Support
+
+The Portal Gateway uses `map` and regular expressions extensively.
+
+Ensure the following libraries are enabled:
+
+```text
+CONFIG_NGINX_PCRE=y
+CONFIG_PACKAGE_libpcre=y
+```
+
+---
+
+### Validation Checklist
+
+After building and installing the firmware, verify:
+
+```sh
+nginx -V
+```
+
+The output should include:
+
+```text
+--with-http_auth_request_module
+--with-http_map_module
+--with-http_proxy_module
+```
+
+Missing modules will result in nginx configuration errors or silent runtime failures.
+
+---
+
+### Design Note
+
+This feed intentionally **does not force nginx Kconfig options**.
+
+The responsibility of selecting the correct nginx feature set remains with the firmware build configuration, ensuring:
+
+* No hidden side effects
+* No unexpected global configuration changes
+* Full compatibility with existing nginx-based deployments
+
+---
+
+### Common Misconfiguration
+
+❌ Using `nginx-minimal`
+
+❌ Missing `headers_more` module
+
+❌ Missing `http_auth_request`
+
+❌ Building nginx without PCRE support
+
+
+All of the above will cause the Portal Gateway to fail.
+
+---
+
+## Nginx Capability Checks
+
+Portal Gateway performs nginx capability validation at multiple stages to prevent misconfiguration.
+
+### Shared Checker Script
+
+All nginx capability checks are implemented in a shared script:
+
+```text
+/usr/libexec/portal/check-nginx.sh
+```
+
+This script verifies:
+
+* nginx binary existence
+* Required HTTP modules:
+
+  * `http_auth_request`
+  * `http_proxy`
+  * `http_map`
+  * `headers_more`
+  * `http_rewrite`
+  * `limit_conn`
+  * `limit_req`
+
+---
+
+### Installation-Time Checks (postinst)
+
+During package installation:
+
+* The checker is executed in **warning-only mode**
+* Installation is **never aborted**
+* Missing capabilities are logged and printed
+
+Purpose:
+
+* Allow users to install portal-gateway before rebuilding nginx
+* Provide early diagnostics without disrupting the system
+
+---
+
+### Startup-Time Checks (init.d)
+
+Before starting the portal-gateway service:
+
+* The checker is executed in **strict mode**
+* Service startup is refused if requirements are not met
+* The system remains unaffected
+
+Purpose:
+
+* Prevent undefined or partially functional runtime behavior
+
+---
+
+### Design Rationale
+
+This layered validation model ensures:
+
+* Clear diagnostics at installation time
+* Hard safety gates at service startup
+* Single source of truth for nginx capability requirements
+
+---
+
 ## License
 
 MIT

@@ -1,0 +1,55 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ass-Sniper <zooukaiass@gmail.com>
+Date: Thu, 18 Dec 2025 03:20:00 +0800
+Subject: [nginx] init: support native nginx.conf and disable UCI control
+
+Allow nginx init script to run with a native /etc/nginx/nginx.conf
+when USE_NATIVE_CONF=1 is set. This is required for advanced
+gateway use cases such as Captive Portal, auth_request, header
+injection and dynamic config generation.
+
+---
+ files/nginx.init | 23 +++++++++++++++++------
+ 1 file changed, 18 insertions(+), 5 deletions(-)
+
+diff --git a/files/nginx.init b/files/nginx.init
+index 1f2c3d4..5a6b7c8 100755
+--- a/files/nginx.init
++++ b/files/nginx.init
+@@ -6,6 +6,8 @@ START=80
+ 
+ USE_PROCD=1
+ 
++USE_NATIVE_CONF=1
++
+ G_OPTS="daemon off;"
+ 
+ NGINX_UTIL="/usr/bin/nginx-util"
+@@ -21,15 +23,26 @@ nginx_init() {
+ 
+ 	[ -d /var/log/nginx ] || mkdir -p /var/log/nginx
+ 	[ -d /var/lib/nginx ] || mkdir -p /var/lib/nginx
+-
+-	rm -f "$(readlink "${UCI_CONF}")"
+-	${NGINX_UTIL} init_lan
+-
+-	if [ -e "${UCI_CONF}" ]
+-	then CONF="${UCI_CONF}"
+-	else CONF="${NGINX_CONF}"
+-	fi
++
++	if [ "${USE_NATIVE_CONF}" = "1" ]; then
++		CONF="/etc/nginx/nginx.conf"
++	else
++		rm -f "$(readlink "${UCI_CONF}")"
++		${NGINX_UTIL} init_lan
++
++		if [ -e "${UCI_CONF}" ]; then
++			CONF="${UCI_CONF}"
++		else
++			CONF="${NGINX_CONF}"
++		fi
++	fi
+ 
+ 	local message
+ 	message="$(/usr/sbin/nginx -t -c "${CONF}" -g "${G_OPTS}" 2>&1)" ||

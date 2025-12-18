@@ -1,0 +1,46 @@
+#
+# Portal Gateway recommended build configuration
+#
+
+# -------------------------------------------------
+# Core packages
+# -------------------------------------------------
+CONFIG_PACKAGE_portal-gateway=y
+
+# -------------------------------------------------
+# nginx (non-minimal, SSL-enabled)
+# -------------------------------------------------
+CONFIG_PACKAGE_nginx-ssl=y
+CONFIG_PACKAGE_nginx-util=y
+CONFIG_PACKAGE_nginx-ssl-util=y
+
+# -------------------------------------------------
+# Required nginx HTTP modules
+# -------------------------------------------------
+CONFIG_NGINX_HTTP_AUTH_REQUEST=y
+CONFIG_NGINX_HTTP_PROXY=y
+CONFIG_NGINX_HTTP_MAP=y
+CONFIG_NGINX_HTTP_REWRITE=y
+CONFIG_NGINX_HEADERS_MORE=y
+CONFIG_NGINX_HTTP_LIMIT_CONN=y
+CONFIG_NGINX_HTTP_LIMIT_REQ=y
+
+# Optional but recommended
+CONFIG_NGINX_HTTP_GZIP=y
+CONFIG_NGINX_HTTP_CHARSET=y
+CONFIG_NGINX_HTTP_V2=y
+CONFIG_NGINX_HTTP_UPSTREAM_KEEPALIVE=y
+
+# -------------------------------------------------
+# Regex / map support
+# -------------------------------------------------
+CONFIG_NGINX_PCRE=y
+CONFIG_PACKAGE_libpcre=y
+
+# -------------------------------------------------
+# Dataplane utilities
+# -------------------------------------------------
+CONFIG_PACKAGE_iptables=y
+CONFIG_PACKAGE_ipset=y
+CONFIG_PACKAGE_curl=y
+CONFIG_PACKAGE_ca-bundle=y
