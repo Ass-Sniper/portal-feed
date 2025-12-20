@@ -46,8 +46,11 @@ define Package/portal-gateway/description
  and Controller (AC-style architecture).
 endef
 
-# No build step (pure scripts + configs)
 define Build/Compile
+	$(MAKE) -C $(PKG_BUILD_DIR)/src/portal-signer \
+		CC="$(TARGET_CC)" \
+		CFLAGS="$(TARGET_CFLAGS)" \
+		LDFLAGS="$(TARGET_LDFLAGS)"
 endef
 
 define Package/portal-gateway/install
@@ -84,19 +87,41 @@ define Package/portal-gateway/install
 	$(INSTALL_CONF) ./files/etc/nginx/conf.d/portal/*.conf \
 		$(1)/etc/nginx/conf.d/portal/
 
-	# signer placeholder (future C/C++ binary)
-	$(INSTALL_DIR) $(1)/usr/libexec/portal/signer
+	# -----------------------------------------------------
+	# Install portal-signer daemon
+	# This is the local auth_request signer service
+	# listening on 127.0.0.1:9000 for nginx
+	# -----------------------------------------------------
+	$(INSTALL_DIR) $(1)/usr/sbin
+	$(INSTALL_BIN) \
+		$(PKG_BUILD_DIR)/src/portal-signer/portal-signer \
+		$(1)/usr/sbin/portal-signer
 
-	# documentation
-	$(INSTALL_DIR) $(1)/usr/share/doc/portal-gateway
-	$(INSTALL_CONF) ./README.md \
-		$(1)/usr/share/doc/portal-gateway/README.md
 endef
 
 define Package/portal-gateway/postinst
 #!/bin/sh
-[ -n "$$IPKG_INSTROOT" ] && exit 0
+[ -n "$${IPKG_INSTROOT}" ] && exit 0
 
+# =========================================================
+# Portal signer key initialization
+# =========================================================
+KEY_FILE="/etc/portal/portal.signing.key"
+
+mkdir -p /etc/portal
+
+if [ ! -f "$$KEY_FILE" ]; then
+    echo "[portal-gateway] Generating portal signing key"
+
+    head -c 32 /dev/urandom | \
+        hexdump -e '32/1 "%02x"' > "$$KEY_FILE"
+
+    chmod 600 "$$KEY_FILE"
+fi
+
+# =========================================================
+# Existing nginx capability check (unchanged)
+# =========================================================
 CHECKER="/usr/libexec/portal/check-nginx.sh"
 
 if [ -x "$$CHECKER" ]; then

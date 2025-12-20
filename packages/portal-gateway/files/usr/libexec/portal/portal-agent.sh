@@ -12,6 +12,9 @@
 # Optional: /etc/portal/portal-agent.conf for overrides (shell format)
 # =========================================================
 
+# shellcheck source=/dev/null
+. /usr/libexec/portal/lib/http.sh
+
 set -eu
 
 TAG="portal-agent"
@@ -28,6 +31,10 @@ PORTAL_HMAC_KID="${PORTAL_HMAC_KID:-v1}"
 AUTH_MODE="none"         # none | jwt | hmac
 JWT_TOKEN=""
 JWT_EXPIRES_AT=0
+
+# signer service (C portal-signer)
+PORTAL_SIGNER_URL="http://127.0.0.1:9000/sign"
+PORTAL_SIGNER_KID="v1"
 
 
 # Runtime endpoint (Go controller). We keep a fallback to legacy paths.
@@ -143,9 +150,9 @@ hmac_sign_headers() {
 
   echo \
     -H "X-Portal-Kid: ${PORTAL_HMAC_KID}" \
-    -H "X-Portal-Ts: ${ts}" \
-    -H "X-Portal-Nonce: ${nonce}" \
-    -H "X-Portal-Sign: ${sign}"
+    -H "X-Portal-Timestamp: ${ts}" \
+    -H "X-Portal-Nonce : ${nonce}" \
+    -H "X-Portal-Signature: ${sign}"
 }
 
 http_get_signed() {
@@ -156,9 +163,7 @@ http_get_signed() {
 
   headers="$(hmac_sign_headers GET "$path_query" "")"
 
-  curl -fsS --max-time 3 \
-    $headers \
-    "$url"
+  portal_http_request GET "$url" "$headers"
 }
 
 jwt_auth_header() {
@@ -174,7 +179,7 @@ portal_get() {
     jwt)
       hdr="$(jwt_auth_header || true)"
       if [ -n "$hdr" ]; then
-        curl -fsS --max-time 3 $hdr "$url"
+        portal_http_request GET "$url" "$hdr"
         return $?
       fi
       log "event=jwt_expired fallback=hmac"
@@ -187,6 +192,37 @@ portal_get() {
   else
     http_get "$url"
   fi
+}
+
+portal_sign_request() {
+    local method="$1"
+    local path="$2"
+    local raw_query="$3"
+    local body="$4"
+
+    local req
+    req="$(cat <<EOF
+{
+  "method": "$method",
+  "path": "$path",
+  "raw_query": "$raw_query",
+  "body": $(printf '%s' "$body" | jq -Rs .)
+}
+EOF
+)"
+
+    local resp
+    resp="$(curl -fsS \
+        -X POST "$PORTAL_SIGNER_URL" \
+        -H "Content-Type: application/json" \
+        -d "$req")" || return 1
+
+    SIGN_KID="$(echo "$resp" | jsonfilter -e '@.kid')"
+    SIGN_TS="$(echo "$resp" | jsonfilter -e '@.timestamp')"
+    SIGN_NONCE="$(echo "$resp" | jsonfilter -e '@.nonce')"
+    SIGN_SIG="$(echo "$resp" | jsonfilter -e '@.signature')"
+
+    [ -n "$SIGN_TS" ] && [ -n "$SIGN_NONCE" ] && [ -n "$SIGN_SIG" ]
 }
 
 
@@ -216,7 +252,7 @@ discover_radios() {
     # iwinfo output format varies; we use assoclist enumeration to detect usable AP ifaces
     # If iface is an AP, `iwinfo <iface> assoclist` usually returns 0 even if empty.
     for i in $(iwinfo 2>/dev/null | awk '/^[a-zA-Z0-9_.-]+/{print $1}' | sort -u); do
-      iwinfo "$i" assoclist >/dev/null 2>&1 && echo -n "$i "
+      iwinfo "$i" assoclist >/dev/null 2>&1 && printf '%s ' "$i"
     done
     return 0
   fi
@@ -252,30 +288,50 @@ discover_vlan_ifs() {
 }
 
 discover_captive_ifs() {
-  # If explicit CAPTIVE_IFS provided, trust it.
-  if [ -n "$CAPTIVE_IFS" ]; then
+  # 1) Explicit override
+  if [ -n "${CAPTIVE_IFS:-}" ]; then
     echo "$CAPTIVE_IFS"
     return 0
   fi
 
-  vlanifs="$(discover_vlan_ifs || true)"
-  out=""
+  # 2) Discover vlan subinterfaces (space or newline separated)
+  vlanifs="$(discover_vlan_ifs 2>/dev/null || true)"
+
+  # 3) If we have VLAN subinterfaces, filter them
   if [ -n "$vlanifs" ]; then
-    # Filter by TRUST_VLANS and optional CAPTIVE_VLANS
-    for ifn in $vlanifs; do
+    # Use positional params as an array-like accumulator
+    set --
+
+    # Iterate line-by-line safely (handles spaces/newlines predictably)
+    # Note: if discover_vlan_ifs outputs space-separated items, consider making it output newline-separated.
+    while IFS= read -r ifn; do
+      [ -n "$ifn" ] || continue
+
       vid="${ifn##*.}"
-      is_in_list "$vid" $TRUST_VLANS && continue
-      if [ -n "$CAPTIVE_VLANS" ]; then
-        is_in_list "$vid" $CAPTIVE_VLANS || continue
+
+      # Skip trusted VLANs
+      if is_in_list "$vid" "${TRUST_VLANS:-}"; then
+        continue
       fi
-      out="${out}${ifn} "
-    done
-    echo "$out"
+
+      # If CAPTIVE_VLANS is set, only keep those VLANs
+      if [ -n "${CAPTIVE_VLANS:-}" ] && ! is_in_list "$vid" "$CAPTIVE_VLANS"; then
+        continue
+      fi
+
+      # Keep this interface
+      set -- "$@" "$ifn"
+    done <<EOF
+$vlanifs
+EOF
+
+    # Join by space for downstream compatibility
+    echo "$*"
     return 0
   fi
 
-  # No VLAN subinterfaces: fall back to bridge itself
-  echo "$BRIDGE_NAME"
+  # 4) No VLAN subinterfaces: fall back to bridge itself
+  echo "${BRIDGE_NAME:-br-lan}"
 }
 
 # Resolve captive interfaces and log details
@@ -438,11 +494,11 @@ log "event=runtime_fetch_done policy_version=${POLICY_VERSION} captive_ifs='${CA
 #   map $remote_addr $portal_vlan_id { default 0; 172.16.10.2 10; }
 #
 # Nginx configs should then use:
-#   proxy_set_header X-Portal-MAC $portal_mac;
-#   proxy_set_header X-Portal-SSID $portal_ssid;
-#   proxy_set_header X-Portal-Radio-ID $portal_radio_id;
-#   proxy_set_header X-Portal-VLAN-ID $portal_vlan_id;
-#   proxy_set_header X-Portal-AP-ID $ap_id;  (see below)
+#   proxy_set_header X-Client-MAC $portal_mac;
+#   proxy_set_header X-Client-SSID $portal_ssid;
+#   proxy_set_header X-Client-Radio-ID $portal_radio_id;
+#   proxy_set_header X-Client-VLAN-ID $portal_vlan_id;
+#   proxy_set_header X-Client-AP-ID $ap_id;  (see below)
 # ---------------------------------------------------------
 escape_nginx_str() {
   # escape backslash and double quote

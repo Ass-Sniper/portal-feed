@@ -1,0 +1,25 @@
+
+CC      ?= $(CROSS_COMPILE)gcc
+CFLAGS  ?= -O2 -Wall -Wextra -Werror
+LDFLAGS ?=
+
+TARGET  := portal-signer
+SRCS    := portal-signer.c signer.c crypto_hmac.c
+OBJS    := $(SRCS:.c=.o)
+
+# Optional: OpenSSL (libcrypto)
+CFLAGS  += -I$(STAGING_DIR)/usr/include
+LDFLAGS += -L$(STAGING_DIR)/usr/lib -lcrypto
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -f $(TARGET) $(OBJS)
